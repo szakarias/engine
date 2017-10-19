@@ -11,11 +11,11 @@
 
 namespace vulkan {
 
-static const VkDebugReportFlagsEXT kVulkanErrorFlags FTL_ALLOW_UNUSED_TYPE =
+static const VkDebugReportFlagsEXT kVulkanErrorFlags FXL_ALLOW_UNUSED_TYPE =
     VK_DEBUG_REPORT_WARNING_BIT_EXT |
     VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT;
 
-static const VkDebugReportFlagsEXT kVulkanInfoFlags FTL_ALLOW_UNUSED_TYPE =
+static const VkDebugReportFlagsEXT kVulkanInfoFlags FXL_ALLOW_UNUSED_TYPE =
     VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 
 std::string VulkanDebugReport::DebugExtensionName() {
@@ -201,9 +201,13 @@ OnVulkanDebugReportCallback(VkDebugReportFlagsEXT flags,
   stream << "-----------------------------------------------------------------";
 
   if (flags & kVulkanErrorFlags) {
-    FTL_DCHECK(false) << stream.str();
+    if (ValidationErrorsFatal()) {
+      FXL_DCHECK(false) << stream.str();
+    } else {
+      FXL_LOG(ERROR) << stream.str();
+    }
   } else {
-    FTL_LOG(INFO) << stream.str();
+    FXL_LOG(INFO) << stream.str();
   }
 
   // Returning false tells the layer not to stop when the event occurs, so
@@ -224,10 +228,13 @@ VulkanDebugReport::VulkanDebugReport(
     return;
   }
 
+  VkDebugReportFlagsEXT flags = kVulkanErrorFlags;
+  if (ValidationLayerInfoMessagesEnabled())
+    flags |= kVulkanInfoFlags;
   const VkDebugReportCallbackCreateInfoEXT create_info = {
       .sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT,
       .pNext = nullptr,
-      .flags = kVulkanErrorFlags | kVulkanInfoFlags,
+      .flags = flags,
       .pfnCallback = &vulkan::OnVulkanDebugReportCallback,
       .pUserData = nullptr,
   };

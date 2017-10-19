@@ -16,7 +16,7 @@
 #include "flutter/shell/common/platform_view.h"
 #include "flutter/shell/platform/android/android_native_window.h"
 #include "flutter/shell/platform/android/android_surface.h"
-#include "lib/ftl/memory/weak_ptr.h"
+#include "lib/fxl/memory/weak_ptr.h"
 
 namespace shell {
 
@@ -28,6 +28,8 @@ class PlatformViewAndroid : public PlatformView {
 
   ~PlatformViewAndroid() override;
 
+  virtual void Attach() override;
+
   void Detach();
 
   void SurfaceCreated(JNIEnv* env, jobject jsurface, jint backgroundColor);
@@ -37,7 +39,8 @@ class PlatformViewAndroid : public PlatformView {
   void SurfaceDestroyed();
 
   void RunBundleAndSnapshot(std::string bundle_path,
-                            std::string snapshot_override);
+                            std::string snapshot_override,
+                            std::string entrypoint);
 
   void RunBundleAndSource(std::string bundle_path,
                           std::string main,
@@ -84,7 +87,7 @@ class PlatformViewAndroid : public PlatformView {
   void UpdateSemantics(std::vector<blink::SemanticsNode> update) override;
 
   void HandlePlatformMessage(
-      ftl::RefPtr<blink::PlatformMessage> message) override;
+      fxl::RefPtr<blink::PlatformMessage> message) override;
 
   void HandlePlatformMessageResponse(int response_id,
                                      std::vector<uint8_t> data);
@@ -100,11 +103,11 @@ class PlatformViewAndroid : public PlatformView {
   }
 
  private:
-  const std::unique_ptr<AndroidSurface> android_surface_;
+  std::unique_ptr<AndroidSurface> android_surface_;
   fml::jni::JavaObjectWeakGlobalRef flutter_view_;
   // We use id 0 to mean that no response is expected.
   int next_response_id_ = 1;
-  std::unordered_map<int, ftl::RefPtr<blink::PlatformMessageResponse>>
+  std::unordered_map<int, fxl::RefPtr<blink::PlatformMessageResponse>>
       pending_responses_;
 
   void UpdateThreadPriorities();
@@ -113,7 +116,7 @@ class PlatformViewAndroid : public PlatformView {
 
   void GetBitmapGpuTask(jobject* pixels_out, SkISize* size_out);
 
-  FTL_DISALLOW_COPY_AND_ASSIGN(PlatformViewAndroid);
+  FXL_DISALLOW_COPY_AND_ASSIGN(PlatformViewAndroid);
 };
 
 }  // namespace shell

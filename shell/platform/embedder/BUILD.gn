@@ -1,0 +1,39 @@
+# Copyright 2017 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("embedder") {
+  sources = [
+    "embedder.cc",
+    "embedder.h",
+    "embedder_include.c",
+    "platform_view_embedder.cc",
+    "platform_view_embedder.h",
+  ]
+
+  deps = [
+    "//third_party/dart/runtime:libdart_jit",
+    "//third_party/dart/runtime/bin:embedded_dart_io",
+    "$flutter_root/common",
+    "$flutter_root/fml",
+    "$flutter_root/shell/common",
+    "$flutter_root/shell/gpu",
+    "//garnet/public/lib/fxl",
+    "//third_party/skia",
+    "//topaz/lib/tonic",
+  ]
+
+  public_configs = [
+    "$flutter_root:config",
+  ]
+}
+
+shared_library("flutter_engine") {
+  deps = [
+    ":embedder",
+  ]
+
+  public_configs = [
+    "$flutter_root:config",
+  ]
+}

@@ -10,9 +10,12 @@
 #include <vector>
 #include "flutter/vulkan/vulkan_debug_report.h"
 #include "flutter/vulkan/vulkan_handle.h"
-#include "lib/ftl/macros.h"
+#include "lib/fxl/macros.h"
 
 namespace vulkan {
+
+static const int kGrCacheMaxCount = 8192;
+static const size_t kGrCacheMaxByteSize = 512 * (1 << 20);
 
 class VulkanDevice;
 class VulkanProcTable;
@@ -48,7 +51,7 @@ class VulkanApplication {
 
   std::vector<VkPhysicalDevice> GetPhysicalDevices() const;
 
-  FTL_DISALLOW_COPY_AND_ASSIGN(VulkanApplication);
+  FXL_DISALLOW_COPY_AND_ASSIGN(VulkanApplication);
 };
 
 }  // namespace vulkan

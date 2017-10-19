@@ -4,8 +4,7 @@
 
 assert(is_ios)
 
-import("//flutter/common/config.gni")
-import("//build/config/ios/rules.gni")
+import("$flutter_root/common/config.gni")
 import("//build/config/ios/ios_sdk.gni")
 
 _flutter_framework_dir = "$root_out_dir/Flutter.framework"
@@ -23,7 +22,9 @@ shared_library("flutter_framework_dylib") {
     "framework/Headers/FlutterCodecs.h",
     "framework/Headers/FlutterDartProject.h",
     "framework/Headers/FlutterMacros.h",
+    "framework/Headers/FlutterPlugin.h",
     "framework/Headers/FlutterViewController.h",
+    "framework/Headers/FlutterNavigationController.h",
     "framework/Source/FlutterAppDelegate.mm",
     "framework/Source/FlutterChannels.mm",
     "framework/Source/FlutterCodecs.mm",
@@ -41,6 +42,7 @@ shared_library("flutter_framework_dylib") {
     "framework/Source/FlutterView.h",
     "framework/Source/FlutterView.mm",
     "framework/Source/FlutterViewController.mm",
+    "framework/Source/FlutterNavigationController.mm",
     "framework/Source/accessibility_bridge.h",
     "framework/Source/accessibility_bridge.mm",
     "framework/Source/flutter_main_ios.h",
@@ -64,23 +66,27 @@ shared_library("flutter_framework_dylib") {
   ]
 
   deps = [
-    "//flutter/flow",
-    "//flutter/fml",
-    "//flutter/glue",
-    "//flutter/lib/ui",
-    "//flutter/shell/common",
-    "//flutter/shell/gpu",
-    "//flutter/shell/platform/darwin/common",
-    "//flutter/sky/engine/platform",
-    "//flutter/sky/engine/wtf",
-    "//lib/ftl",
+    "$flutter_root/flow",
+    "$flutter_root/fml",
+    "$flutter_root/glue",
+    "$flutter_root/lib/ui",
+    "$flutter_root/shell/common",
+    "$flutter_root/shell/gpu",
+    "$flutter_root/shell/platform/darwin/common",
+    "$flutter_root/sky/engine/platform",
+    "$flutter_root/sky/engine/wtf",
+    "//garnet/public/lib/fxl",
     "//third_party/skia",
   ]
   if (flutter_runtime_mode == "debug") {
-    deps += [ "//dart/runtime:libdart_jit" ]
+    deps += [ "//third_party/dart/runtime:libdart_jit" ]
   } else {
-    deps += [ "//dart/runtime:libdart_precompiled_runtime" ]
+    deps += [ "//third_party/dart/runtime:libdart_precompiled_runtime" ]
   }
+
+  public_configs = [
+    "$flutter_root:config",
+  ]
 
   defines = [ "FLUTTER_FRAMEWORK" ]
 
@@ -110,7 +116,7 @@ copy("framework_dylib") {
 action("framework_install_name") {
   visibility = [ ":*" ]
   stamp_file = "$root_out_dir/flutter_install_name_stamp"
-  script = "//flutter/sky/tools/change_install_name.py"
+  script = "$flutter_root/sky/tools/change_install_name.py"
 
   inputs = [
     "$_flutter_framework_dir/Flutter",
@@ -163,7 +169,9 @@ copy("framework_headers") {
     "framework/Headers/FlutterCodecs.h",
     "framework/Headers/FlutterDartProject.h",
     "framework/Headers/FlutterMacros.h",
+    "framework/Headers/FlutterPlugin.h",
     "framework/Headers/FlutterViewController.h",
+    "framework/Headers/FlutterNavigationController.h",
   ]
   outputs = [
     "$_flutter_framework_dir/Headers/{{source_file_part}}",
@@ -174,7 +182,7 @@ copy("framework_icu") {
   visibility = [ ":*" ]
   set_sources_assignment_filter([])
   sources = [
-    "//third_party/icu/android/icudtl.dat",
+    "//third_party/icu/ios/icudtl.dat",
   ]
   set_sources_assignment_filter(sources_assignment_filter)
   outputs = [

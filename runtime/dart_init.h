@@ -5,9 +5,9 @@
 #ifndef FLUTTER_RUNTIME_DART_INIT_H_
 #define FLUTTER_RUNTIME_DART_INIT_H_
 
-#include "dart/runtime/include/dart_api.h"
-#include "lib/ftl/functional/closure.h"
-#include "lib/ftl/build_config.h"
+#include "lib/fxl/build_config.h"
+#include "lib/fxl/functional/closure.h"
+#include "third_party/dart/runtime/include/dart_api.h"
 
 #include <memory>
 #include <string>
@@ -20,9 +20,12 @@ extern const char kKernelAssetKey[];
 // Name of the snapshot blob asset within the FLX bundle.
 extern const char kSnapshotAssetKey[];
 
+// Name of the platform kernel blob asset within the FLX bundle.
+extern const char kPlatformKernelAssetKey[];
+
 bool IsRunningPrecompiledCode();
 
-using EmbedderTracingCallback = ftl::Closure;
+using EmbedderTracingCallback = fxl::Closure;
 
 typedef void (*ServiceIsolateHook)(bool);
 typedef void (*RegisterNativeServiceProtocolExtensionHook)(bool);

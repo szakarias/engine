@@ -6,13 +6,13 @@
 
 #include <vector>
 
-#include "dart/runtime/include/dart_tools_api.h"
 #include "flutter/fml/platform/android/jni_util.h"
 #include "flutter/runtime/start_up.h"
 #include "flutter/shell/common/shell.h"
-#include "lib/ftl/arraysize.h"
-#include "lib/ftl/command_line.h"
-#include "lib/ftl/macros.h"
+#include "lib/fxl/arraysize.h"
+#include "lib/fxl/command_line.h"
+#include "lib/fxl/macros.h"
+#include "third_party/dart/runtime/include/dart_tools_api.h"
 
 namespace shell {
 
@@ -27,7 +27,7 @@ static void Init(JNIEnv* env,
     args.push_back(std::move(arg));
   }
 
-  auto command_line = ftl::CommandLineFromIterators(args.begin(), args.end());
+  auto command_line = fxl::CommandLineFromIterators(args.begin(), args.end());
   std::string icu_data_path =
       command_line.GetOptionValueWithDefault("icu-data-file-path", "");
   Shell::InitStandalone(std::move(command_line), std::move(icu_data_path));

@@ -13,19 +13,35 @@
 #include "flutter/shell/gpu/gpu_rasterizer.h"
 #include "flutter/shell/platform/darwin/common/process_info_mac.h"
 #include "flutter/shell/platform/darwin/ios/framework/Source/vsync_waiter_ios.h"
-#include "lib/ftl/synchronization/waitable_event.h"
+#include "lib/fxl/synchronization/waitable_event.h"
 
 namespace shell {
 
-PlatformViewIOS::PlatformViewIOS(CALayer* layer)
+PlatformViewIOS::PlatformViewIOS(CALayer* layer, NSObject<FlutterBinaryMessenger>* binaryMessenger)
     : PlatformView(std::make_unique<GPURasterizer>(std::make_unique<ProcessInfoMac>())),
       ios_surface_(IOSSurface::Create(surface_config_, layer)),
-      weak_factory_(this) {
-  CreateEngine();
-  PostAddToShellTask();
-}
+      weak_factory_(this),
+      binary_messenger_(binaryMessenger) {}
 
 PlatformViewIOS::~PlatformViewIOS() = default;
+
+void PlatformViewIOS::Attach() {
+  Attach(NULL);
+}
+
+void PlatformViewIOS::Attach(fxl::Closure firstFrameCallback) {
+  CreateEngine();
+  PostAddToShellTask();
+  if (firstFrameCallback) {
+    firstFrameCallback_ = firstFrameCallback;
+    rasterizer_->AddNextFrameCallback([weakSelf = GetWeakPtr()] {
+      if (weakSelf) {
+        weakSelf->firstFrameCallback_();
+        weakSelf->firstFrameCallback_ = nullptr;
+      }
+    });
+  }
+}
 
 void PlatformViewIOS::NotifyCreated() {
   PlatformView::NotifyCreated(ios_surface_->CreateGPUSurface());
@@ -52,7 +68,7 @@ void PlatformViewIOS::SetupAndLoadFromSource(const std::string& assets_directory
       });
 }
 
-ftl::WeakPtr<PlatformViewIOS> PlatformViewIOS::GetWeakPtr() {
+fxl::WeakPtr<PlatformViewIOS> PlatformViewIOS::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
@@ -80,14 +96,14 @@ void PlatformViewIOS::UpdateSemantics(std::vector<blink::SemanticsNode> update) 
     accessibility_bridge_->UpdateSemantics(std::move(update));
 }
 
-void PlatformViewIOS::HandlePlatformMessage(ftl::RefPtr<blink::PlatformMessage> message) {
+void PlatformViewIOS::HandlePlatformMessage(fxl::RefPtr<blink::PlatformMessage> message) {
   platform_message_router_.HandlePlatformMessage(std::move(message));
 }
 
 void PlatformViewIOS::RunFromSource(const std::string& assets_directory,
                                     const std::string& main,
                                     const std::string& packages) {
-  auto latch = new ftl::ManualResetWaitableEvent();
+  auto latch = new fxl::ManualResetWaitableEvent();
 
   dispatch_async(dispatch_get_main_queue(), ^{
     SetupAndLoadFromSource(assets_directory, main, packages);

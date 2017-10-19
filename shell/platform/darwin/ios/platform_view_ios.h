@@ -11,8 +11,9 @@
 #include "flutter/shell/platform/darwin/ios/framework/Source/accessibility_bridge.h"
 #include "flutter/shell/platform/darwin/ios/framework/Source/platform_message_router.h"
 #include "flutter/shell/platform/darwin/ios/ios_surface.h"
-#include "lib/ftl/macros.h"
-#include "lib/ftl/memory/weak_ptr.h"
+#include "lib/fxl/functional/closure.h"
+#include "lib/fxl/macros.h"
+#include "lib/fxl/memory/weak_ptr.h"
 
 @class CALayer;
 @class UIView;
@@ -21,9 +22,14 @@ namespace shell {
 
 class PlatformViewIOS : public PlatformView {
  public:
-  explicit PlatformViewIOS(CALayer* layer);
+  explicit PlatformViewIOS(CALayer* layer,
+                           NSObject<FlutterBinaryMessenger>* binaryMessenger);
 
   ~PlatformViewIOS() override;
+
+  void Attach() override;
+
+  void Attach(fxl::Closure firstFrameCallback);
 
   void NotifyCreated();
 
@@ -33,7 +39,7 @@ class PlatformViewIOS : public PlatformView {
     return platform_message_router_;
   }
 
-  ftl::WeakPtr<PlatformViewIOS> GetWeakPtr();
+  fxl::WeakPtr<PlatformViewIOS> GetWeakPtr();
 
   void UpdateSurfaceSize();
 
@@ -42,7 +48,7 @@ class PlatformViewIOS : public PlatformView {
   bool ResourceContextMakeCurrent() override;
 
   void HandlePlatformMessage(
-      ftl::RefPtr<blink::PlatformMessage> message) override;
+      fxl::RefPtr<blink::PlatformMessage> message) override;
 
   void UpdateSemantics(std::vector<blink::SemanticsNode> update) override;
 
@@ -50,17 +56,23 @@ class PlatformViewIOS : public PlatformView {
                      const std::string& main,
                      const std::string& packages) override;
 
+  NSObject<FlutterBinaryMessenger>* binary_messenger() const {
+    return binary_messenger_;
+  }
+
  private:
   std::unique_ptr<IOSSurface> ios_surface_;
   PlatformMessageRouter platform_message_router_;
   std::unique_ptr<AccessibilityBridge> accessibility_bridge_;
-  ftl::WeakPtrFactory<PlatformViewIOS> weak_factory_;
+  fxl::Closure firstFrameCallback_;
+  fxl::WeakPtrFactory<PlatformViewIOS> weak_factory_;
+  NSObject<FlutterBinaryMessenger>* binary_messenger_;
 
   void SetupAndLoadFromSource(const std::string& assets_directory,
                               const std::string& main,
                               const std::string& packages);
 
-  FTL_DISALLOW_COPY_AND_ASSIGN(PlatformViewIOS);
+  FXL_DISALLOW_COPY_AND_ASSIGN(PlatformViewIOS);
 };
 
 }  // namespace shell

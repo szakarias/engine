@@ -7,9 +7,15 @@
 
 #import <Foundation/Foundation.h>
 
+typedef NS_ENUM(NSInteger, FlutterTextInputAction) {
+  FlutterTextInputActionDone,
+  FlutterTextInputActionNewline,
+};
+
 @protocol FlutterTextInputDelegate<NSObject>
 
 - (void)updateEditingClient:(int)client withState:(NSDictionary*)state;
+- (void)performAction:(FlutterTextInputAction)action withClient:(int)client;
 
 @end
 

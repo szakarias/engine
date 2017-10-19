@@ -9,7 +9,6 @@
 #include <sstream>
 #include <vector>
 
-#include "dart/runtime/include/dart_tools_api.h"
 #include "flutter/common/settings.h"
 #include "flutter/common/threads.h"
 #include "flutter/fml/icu_util.h"
@@ -21,7 +20,8 @@
 #include "flutter/shell/common/platform_view_service_protocol.h"
 #include "flutter/shell/common/skia_event_tracer_impl.h"
 #include "flutter/shell/common/switches.h"
-#include "lib/ftl/files/unique_fd.h"
+#include "lib/fxl/files/unique_fd.h"
+#include "third_party/dart/runtime/include/dart_tools_api.h"
 #include "third_party/skia/include/core/SkGraphics.h"
 
 namespace shell {
@@ -29,16 +29,16 @@ namespace {
 
 static Shell* g_shell = nullptr;
 
-bool IsInvalid(const ftl::WeakPtr<Rasterizer>& rasterizer) {
+bool IsInvalid(const fxl::WeakPtr<Rasterizer>& rasterizer) {
   return !rasterizer;
 }
 
-bool IsViewInvalid(const ftl::WeakPtr<PlatformView>& platform_view) {
-  return !platform_view;
+bool IsViewInvalid(const std::weak_ptr<PlatformView>& platform_view) {
+  return platform_view.expired();
 }
 
 template <typename T>
-bool GetSwitchValue(const ftl::CommandLine& command_line,
+bool GetSwitchValue(const fxl::CommandLine& command_line,
                     Switch sw,
                     T* result) {
   std::string switch_string;
@@ -67,9 +67,9 @@ void ServiceIsolateHook(bool running_precompiled) {
 
 }  // namespace
 
-Shell::Shell(ftl::CommandLine command_line)
+Shell::Shell(fxl::CommandLine command_line)
     : command_line_(std::move(command_line)) {
-  FTL_DCHECK(!g_shell);
+  FXL_DCHECK(!g_shell);
 
   gpu_thread_.reset(new fml::Thread("gpu_thread"));
   ui_thread_.reset(new fml::Thread("ui_thread"));
@@ -94,7 +94,7 @@ Shell::Shell(ftl::CommandLine command_line)
 
 Shell::~Shell() {}
 
-void Shell::InitStandalone(ftl::CommandLine command_line,
+void Shell::InitStandalone(fxl::CommandLine command_line,
                            std::string icu_data_path,
                            std::string application_library_path) {
   TRACE_EVENT0("flutter", "Shell::InitStandalone");
@@ -114,7 +114,7 @@ void Shell::InitStandalone(ftl::CommandLine command_line,
   if (command_line.HasOption(FlagForSwitch(Switch::DeviceObservatoryPort))) {
     if (!GetSwitchValue(command_line, Switch::DeviceObservatoryPort,
                         &settings.observatory_port)) {
-      FTL_LOG(INFO)
+      FXL_LOG(INFO)
           << "Observatory port specified was malformed. Will default to "
           << settings.observatory_port;
     }
@@ -130,20 +130,25 @@ void Shell::InitStandalone(ftl::CommandLine command_line,
   if (command_line.HasOption(FlagForSwitch(Switch::DeviceDiagnosticPort))) {
     if (!GetSwitchValue(command_line, Switch::DeviceDiagnosticPort,
                         &settings.diagnostic_port)) {
-      FTL_LOG(INFO)
+      FXL_LOG(INFO)
           << "Diagnostic port specified was malformed. Will default to "
           << settings.diagnostic_port;
     }
   }
 
-  settings.ipv6 =
-      command_line.HasOption(FlagForSwitch(Switch::IPv6));
+  settings.ipv6 = command_line.HasOption(FlagForSwitch(Switch::IPv6));
 
   settings.start_paused =
       command_line.HasOption(FlagForSwitch(Switch::StartPaused));
 
   settings.enable_dart_profiling =
       command_line.HasOption(FlagForSwitch(Switch::EnableDartProfiling));
+
+  settings.enable_software_rendering =
+      command_line.HasOption(FlagForSwitch(Switch::EnableSoftwareRendering));
+
+  settings.using_blink =
+      !command_line.HasOption(FlagForSwitch(Switch::EnableTxt));
 
   settings.endless_trace_buffer =
       command_line.HasOption(FlagForSwitch(Switch::EndlessTraceBuffer));
@@ -189,22 +194,23 @@ void Shell::InitStandalone(ftl::CommandLine command_line,
   Init(std::move(command_line));
 }
 
-void Shell::Init(ftl::CommandLine command_line) {
+void Shell::Init(fxl::CommandLine command_line) {
 #if FLUTTER_RUNTIME_MODE != FLUTTER_RUNTIME_MODE_RELEASE
-  InitSkiaEventTracer();
+  bool trace_skia = command_line.HasOption(FlagForSwitch(Switch::TraceSkia));
+  InitSkiaEventTracer(trace_skia);
 #endif
 
-  FTL_DCHECK(!g_shell);
+  FXL_DCHECK(!g_shell);
   g_shell = new Shell(std::move(command_line));
   blink::Threads::UI()->PostTask(Engine::Init);
 }
 
 Shell& Shell::Shared() {
-  FTL_DCHECK(g_shell);
+  FXL_DCHECK(g_shell);
   return *g_shell;
 }
 
-const ftl::CommandLine& Shell::GetCommandLine() const {
+const fxl::CommandLine& Shell::GetCommandLine() const {
   return command_line_;
 }
 
@@ -213,85 +219,69 @@ TracingController& Shell::tracing_controller() {
 }
 
 void Shell::InitGpuThread() {
-  gpu_thread_checker_.reset(new ftl::ThreadChecker());
+  gpu_thread_checker_.reset(new fxl::ThreadChecker());
 }
 
 void Shell::InitUIThread() {
-  ui_thread_checker_.reset(new ftl::ThreadChecker());
+  ui_thread_checker_.reset(new fxl::ThreadChecker());
 }
 
-void Shell::AddRasterizer(const ftl::WeakPtr<Rasterizer>& rasterizer) {
-  FTL_DCHECK(gpu_thread_checker_ &&
+void Shell::AddRasterizer(const fxl::WeakPtr<Rasterizer>& rasterizer) {
+  FXL_DCHECK(gpu_thread_checker_ &&
              gpu_thread_checker_->IsCreationThreadCurrent());
   rasterizers_.push_back(rasterizer);
 }
 
 void Shell::PurgeRasterizers() {
-  FTL_DCHECK(gpu_thread_checker_ &&
+  FXL_DCHECK(gpu_thread_checker_ &&
              gpu_thread_checker_->IsCreationThreadCurrent());
   rasterizers_.erase(
       std::remove_if(rasterizers_.begin(), rasterizers_.end(), IsInvalid),
       rasterizers_.end());
 }
 
-void Shell::GetRasterizers(std::vector<ftl::WeakPtr<Rasterizer>>* rasterizers) {
-  FTL_DCHECK(gpu_thread_checker_ &&
+void Shell::GetRasterizers(std::vector<fxl::WeakPtr<Rasterizer>>* rasterizers) {
+  FXL_DCHECK(gpu_thread_checker_ &&
              gpu_thread_checker_->IsCreationThreadCurrent());
   *rasterizers = rasterizers_;
 }
 
-void Shell::AddPlatformView(const ftl::WeakPtr<PlatformView>& platform_view) {
-  FTL_DCHECK(ui_thread_checker_ &&
-             ui_thread_checker_->IsCreationThreadCurrent());
+void Shell::AddPlatformView(
+    const std::shared_ptr<PlatformView>& platform_view) {
+  std::lock_guard<std::mutex> lk(platform_views_mutex_);
   if (platform_view) {
     platform_views_.push_back(platform_view);
   }
 }
 
 void Shell::PurgePlatformViews() {
-  FTL_DCHECK(ui_thread_checker_ &&
-             ui_thread_checker_->IsCreationThreadCurrent());
+  std::lock_guard<std::mutex> lk(platform_views_mutex_);
   platform_views_.erase(std::remove_if(platform_views_.begin(),
                                        platform_views_.end(), IsViewInvalid),
                         platform_views_.end());
 }
 
 void Shell::GetPlatformViews(
-    std::vector<ftl::WeakPtr<PlatformView>>* platform_views) {
-  FTL_DCHECK(ui_thread_checker_ &&
-             ui_thread_checker_->IsCreationThreadCurrent());
+    std::vector<std::weak_ptr<PlatformView>>* platform_views) {
+  std::lock_guard<std::mutex> lk(platform_views_mutex_);
   *platform_views = platform_views_;
 }
 
-void Shell::WaitForPlatformViewIds(
+void Shell::GetPlatformViewIds(
     std::vector<PlatformViewInfo>* platform_view_ids) {
-  ftl::AutoResetWaitableEvent latch;
-
-  blink::Threads::UI()->PostTask([this, platform_view_ids, &latch]() {
-    WaitForPlatformViewsIdsUIThread(platform_view_ids, &latch);
-  });
-
-  latch.Wait();
-}
-
-void Shell::WaitForPlatformViewsIdsUIThread(
-    std::vector<PlatformViewInfo>* platform_view_ids,
-    ftl::AutoResetWaitableEvent* latch) {
-  std::vector<ftl::WeakPtr<PlatformView>> platform_views;
-  GetPlatformViews(&platform_views);
-  for (auto it = platform_views.begin(); it != platform_views.end(); it++) {
-    PlatformView* view = it->get();
+  std::lock_guard<std::mutex> lk(platform_views_mutex_);
+  for (auto it = platform_views_.begin(); it != platform_views_.end(); it++) {
+    std::shared_ptr<PlatformView> view = it->lock();
     if (!view) {
       // Skip dead views.
       continue;
     }
     PlatformViewInfo info;
-    info.view_id = reinterpret_cast<uintptr_t>(view);
+    info.view_id = reinterpret_cast<uintptr_t>(view.get());
     info.isolate_id = view->engine().GetUIIsolateMainPort();
     info.isolate_name = view->engine().GetUIIsolateName();
     platform_view_ids->push_back(info);
   }
-  latch->Signal();
 }
 
 void Shell::RunInPlatformView(uintptr_t view_id,
@@ -301,12 +291,12 @@ void Shell::RunInPlatformView(uintptr_t view_id,
                               bool* view_existed,
                               int64_t* dart_isolate_id,
                               std::string* isolate_name) {
-  ftl::AutoResetWaitableEvent latch;
-  FTL_DCHECK(view_id != 0);
-  FTL_DCHECK(main_script);
-  FTL_DCHECK(packages_file);
-  FTL_DCHECK(asset_directory);
-  FTL_DCHECK(view_existed);
+  fxl::AutoResetWaitableEvent latch;
+  FXL_DCHECK(view_id != 0);
+  FXL_DCHECK(main_script);
+  FXL_DCHECK(packages_file);
+  FXL_DCHECK(asset_directory);
+  FXL_DCHECK(view_existed);
 
   blink::Threads::UI()->PostTask([this, view_id, main_script, packages_file,
                                   asset_directory, view_existed,
@@ -325,15 +315,17 @@ void Shell::RunInPlatformViewUIThread(uintptr_t view_id,
                                       bool* view_existed,
                                       int64_t* dart_isolate_id,
                                       std::string* isolate_name,
-                                      ftl::AutoResetWaitableEvent* latch) {
-  FTL_DCHECK(ui_thread_checker_ &&
+                                      fxl::AutoResetWaitableEvent* latch) {
+  FXL_DCHECK(ui_thread_checker_ &&
              ui_thread_checker_->IsCreationThreadCurrent());
 
   *view_existed = false;
 
   for (auto it = platform_views_.begin(); it != platform_views_.end(); it++) {
-    PlatformView* view = it->get();
-    if (reinterpret_cast<uintptr_t>(view) == view_id) {
+    std::shared_ptr<PlatformView> view = it->lock();
+    if (!view)
+      continue;
+    if (reinterpret_cast<uintptr_t>(view.get()) == view_id) {
       *view_existed = true;
       view->RunFromSource(assets_directory, main, packages);
       *dart_isolate_id = view->engine().GetUIIsolateMainPort();

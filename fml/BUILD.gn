@@ -24,14 +24,18 @@ source_set("fml") {
   ]
 
   deps = [
-    "//dart/runtime:dart_api",
-    "//lib/ftl",
+    "//third_party/dart/runtime:dart_api",
+    "//garnet/public/lib/fxl",
 
     # These need to be in sync with the Fuchsia buildroot.
     "//third_party/icu",
   ]
 
   configs += [ "//third_party/icu:icu_config" ]
+
+  public_configs = [
+    "$flutter_root:config",
+  ]
 
   libs = []
 
@@ -42,6 +46,8 @@ source_set("fml") {
       "platform/darwin/message_loop_darwin.h",
       "platform/darwin/message_loop_darwin.mm",
       "platform/darwin/paths_darwin.mm",
+      "platform/darwin/platform_version.h",
+      "platform/darwin/platform_version.mm",
       "platform/darwin/resource_mapping_darwin.h",
       "platform/darwin/resource_mapping_darwin.mm",
       "platform/darwin/scoped_block.h",
@@ -108,9 +114,9 @@ executable("fml_unittests") {
   ]
 
   deps = [
-    "//dart/runtime:libdart_jit",
-    "//flutter/fml",
-    "//flutter/testing",
-    "//lib/ftl",
+    "//third_party/dart/runtime:libdart_jit",
+    "$flutter_root/fml",
+    "$flutter_root/testing",
+    "//garnet/public/lib/fxl",
   ]
 }

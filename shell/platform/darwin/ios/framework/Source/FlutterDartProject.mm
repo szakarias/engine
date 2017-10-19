@@ -4,26 +4,27 @@
 
 #include "flutter/shell/platform/darwin/ios/framework/Source/FlutterDartProject_Internal.h"
 
-#include "dart/runtime/include/dart_api.h"
 #include "flutter/common/threads.h"
 #include "flutter/shell/common/shell.h"
 #include "flutter/shell/common/switches.h"
 #include "flutter/shell/platform/darwin/ios/framework/Source/FlutterDartSource.h"
 #include "flutter/shell/platform/darwin/ios/framework/Source/flutter_main_ios.h"
+#include "lib/fxl/strings/string_view.h"
+#include "third_party/dart/runtime/include/dart_api.h"
 
-static NSURL* URLForSwitch(const char* name) {
+static NSURL* URLForSwitch(const fxl::StringView name) {
   const auto& cmd = shell::Shell::Shared().GetCommandLine();
   NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
 
   std::string switch_value;
   if (cmd.GetOptionValue(name, &switch_value)) {
     auto url = [NSURL fileURLWithPath:@(switch_value.c_str())];
-    [defaults setURL:url forKey:@(name)];
+    [defaults setURL:url forKey:@(name.data())];
     [defaults synchronize];
     return url;
   }
 
-  return [defaults URLForKey:@(name)];
+  return [defaults URLForKey:@(name.data())];
 }
 
 @implementation FlutterDartProject {
@@ -181,11 +182,11 @@ static NSString* NSStringFromVMType(VMType type) {
 
   if (_vmTypeRequirement != embedderVMType) {
     NSString* message =
-        [NSString stringWithFormat:@"Could not load the project because of differing project type. "
-                                   @"The project can run in '%@' but the embedder is configured as "
-                                   @"'%@'",
-                                   NSStringFromVMType(_vmTypeRequirement),
-                                   NSStringFromVMType(embedderVMType)];
+        [NSString stringWithFormat:
+                      @"Could not load the project because of differing project type. "
+                      @"The project can run in '%@' but the embedder is configured as "
+                      @"'%@'",
+                      NSStringFromVMType(_vmTypeRequirement), NSStringFromVMType(embedderVMType)];
     result(NO, message);
     return;
   }
@@ -217,9 +218,10 @@ static NSString* NSStringFromVMType(VMType type) {
 
   NSString* path = [self pathForFLXFromBundle:_precompiledDartBundle];
   if (path.length == 0) {
-    NSString* message = [NSString stringWithFormat:@"Could not find the 'app.flx' archive in "
-                                                   @"the precompiled Dart bundle with ID '%@'",
-                                                   _precompiledDartBundle.bundleIdentifier];
+    NSString* message = [NSString stringWithFormat:
+                                      @"Could not find the 'app.flx' archive in "
+                                      @"the precompiled Dart bundle with ID '%@'",
+                                      _precompiledDartBundle.bundleIdentifier];
     result(NO, message);
     return;
   }

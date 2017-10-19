@@ -7,8 +7,8 @@
 
 #include <jni.h>
 #include "flutter/shell/common/vsync_waiter.h"
-#include "lib/ftl/macros.h"
-#include "lib/ftl/memory/weak_ptr.h"
+#include "lib/fxl/macros.h"
+#include "lib/fxl/memory/weak_ptr.h"
 
 namespace shell {
 
@@ -22,15 +22,15 @@ class VsyncWaiterAndroid : public VsyncWaiter {
 
   void AsyncWaitForVsync(Callback callback) override;
 
-  void OnVsync(long frameTimeNanos);
+  void OnVsync(int64_t frameTimeNanos, int64_t frameTargetTimeNanos);
 
  private:
   Callback callback_;
-  ftl::WeakPtr<VsyncWaiterAndroid> self_;
+  fxl::WeakPtr<VsyncWaiterAndroid> self_;
 
-  ftl::WeakPtrFactory<VsyncWaiterAndroid> weak_factory_;
+  fxl::WeakPtrFactory<VsyncWaiterAndroid> weak_factory_;
 
-  FTL_DISALLOW_COPY_AND_ASSIGN(VsyncWaiterAndroid);
+  FXL_DISALLOW_COPY_AND_ASSIGN(VsyncWaiterAndroid);
 };
 
 }  // namespace shell

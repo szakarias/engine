@@ -12,9 +12,9 @@
 #include "flutter/shell/common/shell.h"
 #include "flutter/shell/common/surface.h"
 #include "flutter/shell/common/vsync_waiter.h"
-#include "lib/ftl/macros.h"
-#include "lib/ftl/memory/weak_ptr.h"
-#include "lib/ftl/synchronization/waitable_event.h"
+#include "lib/fxl/macros.h"
+#include "lib/fxl/memory/weak_ptr.h"
+#include "lib/fxl/synchronization/waitable_event.h"
 #include "third_party/skia/include/core/SkSize.h"
 #include "third_party/skia/include/gpu/GrContext.h"
 
@@ -22,7 +22,7 @@ namespace shell {
 
 class Rasterizer;
 
-class PlatformView {
+class PlatformView : public std::enable_shared_from_this<PlatformView> {
  public:
   struct SurfaceConfig {
     uint8_t red_bits = 8;
@@ -37,18 +37,20 @@ class PlatformView {
 
   virtual ~PlatformView();
 
-  void DispatchPlatformMessage(ftl::RefPtr<blink::PlatformMessage> message);
+  virtual void Attach() = 0;
+
+  void DispatchPlatformMessage(fxl::RefPtr<blink::PlatformMessage> message);
   void DispatchSemanticsAction(int32_t id, blink::SemanticsAction action);
   void SetSemanticsEnabled(bool enabled);
 
   void NotifyCreated(std::unique_ptr<Surface> surface);
 
   void NotifyCreated(std::unique_ptr<Surface> surface,
-                     ftl::Closure continuation);
+                     fxl::Closure continuation);
 
   void NotifyDestroyed();
 
-  ftl::WeakPtr<PlatformView> GetWeakPtr();
+  std::weak_ptr<PlatformView> GetWeakPtr();
 
   // The VsyncWaiter will live at least as long as the PlatformView.
   virtual VsyncWaiter* GetVsyncWaiter();
@@ -57,7 +59,9 @@ class PlatformView {
 
   virtual void UpdateSemantics(std::vector<blink::SemanticsNode> update);
   virtual void HandlePlatformMessage(
-      ftl::RefPtr<blink::PlatformMessage> message);
+      fxl::RefPtr<blink::PlatformMessage> message);
+
+  void SetRasterizer(std::unique_ptr<Rasterizer> rasterizer);
 
   Rasterizer& rasterizer() { return *rasterizer_; }
   Engine& engine() { return *engine_; }
@@ -73,7 +77,7 @@ class PlatformView {
   void PostAddToShellTask();
 
   void SetupResourceContextOnIOThreadPerform(
-      ftl::AutoResetWaitableEvent* event);
+      fxl::AutoResetWaitableEvent* event);
 
   SurfaceConfig surface_config_;
   std::unique_ptr<Rasterizer> rasterizer_;
@@ -82,9 +86,7 @@ class PlatformView {
   SkISize size_;
 
  private:
-  ftl::WeakPtrFactory<PlatformView> weak_factory_;
-
-  FTL_DISALLOW_COPY_AND_ASSIGN(PlatformView);
+  FXL_DISALLOW_COPY_AND_ASSIGN(PlatformView);
 };
 
 }  // namespace shell

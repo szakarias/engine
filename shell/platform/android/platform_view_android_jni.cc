@@ -3,14 +3,16 @@
 // found in the LICENSE file.
 
 #include "flutter/shell/platform/android/platform_view_android_jni.h"
+#include "flutter/common/settings.h"
 #include "flutter/fml/platform/android/jni_util.h"
 #include "flutter/fml/platform/android/jni_weak_ref.h"
 #include "flutter/fml/platform/android/scoped_java_ref.h"
 #include "flutter/runtime/dart_service_isolate.h"
-#include "lib/ftl/arraysize.h"
-#include "lib/ftl/logging.h"
+#include "lib/fxl/arraysize.h"
+#include "lib/fxl/logging.h"
 
-#define PLATFORM_VIEW reinterpret_cast<PlatformViewAndroid*>(platform_view)
+#define PLATFORM_VIEW \
+  (*reinterpret_cast<std::shared_ptr<PlatformViewAndroid>*>(platform_view))
 
 namespace shell {
 
@@ -26,7 +28,7 @@ void FlutterViewHandlePlatformMessage(JNIEnv* env,
                                       jint responseId) {
   env->CallVoidMethod(obj, g_handle_platform_message_method, channel, message,
                       responseId);
-  FTL_CHECK(env->ExceptionCheck() == JNI_FALSE);
+  FXL_CHECK(env->ExceptionCheck() == JNI_FALSE);
 }
 
 static jmethodID g_handle_platform_message_response_method = nullptr;
@@ -36,7 +38,7 @@ void FlutterViewHandlePlatformMessageResponse(JNIEnv* env,
                                               jobject response) {
   env->CallVoidMethod(obj, g_handle_platform_message_response_method,
                       responseId, response);
-  FTL_CHECK(env->ExceptionCheck() == JNI_FALSE);
+  FXL_CHECK(env->ExceptionCheck() == JNI_FALSE);
 }
 
 static jmethodID g_update_semantics_method = nullptr;
@@ -45,21 +47,30 @@ void FlutterViewUpdateSemantics(JNIEnv* env,
                                 jobject buffer,
                                 jobjectArray strings) {
   env->CallVoidMethod(obj, g_update_semantics_method, buffer, strings);
-  FTL_CHECK(env->ExceptionCheck() == JNI_FALSE);
+  FXL_CHECK(env->ExceptionCheck() == JNI_FALSE);
+}
+
+static jmethodID g_on_first_frame_method = nullptr;
+void FlutterViewOnFirstFrame(JNIEnv* env, jobject obj) {
+  env->CallVoidMethod(obj, g_on_first_frame_method);
+  FXL_CHECK(env->ExceptionCheck() == JNI_FALSE);
 }
 
 // Called By Java
 
 static jlong Attach(JNIEnv* env, jclass clazz, jobject flutterView) {
-  PlatformViewAndroid* view = new PlatformViewAndroid();
+  auto view = new PlatformViewAndroid();
+  auto storage = new std::shared_ptr<PlatformViewAndroid>(view);
   // Create a weak reference to the flutterView Java object so that we can make
   // calls into it later.
+  view->Attach();
   view->set_flutter_view(fml::jni::JavaObjectWeakGlobalRef(env, flutterView));
-  return reinterpret_cast<jlong>(view);
+  return reinterpret_cast<jlong>(storage);
 }
 
 static void Detach(JNIEnv* env, jobject jcaller, jlong platform_view) {
-  return PLATFORM_VIEW->Detach();
+  PLATFORM_VIEW->Detach();
+  delete &PLATFORM_VIEW;
 }
 
 static jstring GetObservatoryUri(JNIEnv* env, jclass clazz) {
@@ -93,11 +104,13 @@ static void RunBundleAndSnapshot(JNIEnv* env,
                                  jobject jcaller,
                                  jlong platform_view,
                                  jstring bundlePath,
-                                 jstring snapshotOverride) {
+                                 jstring snapshotOverride,
+                                 jstring entrypoint) {
   return PLATFORM_VIEW->RunBundleAndSnapshot(
-      fml::jni::JavaStringToString(env, bundlePath),       //
-      fml::jni::JavaStringToString(env, snapshotOverride)  //
-      );
+      fml::jni::JavaStringToString(env, bundlePath),        //
+      fml::jni::JavaStringToString(env, snapshotOverride),  //
+      fml::jni::JavaStringToString(env, entrypoint)         //
+  );
 }
 
 void RunBundleAndSource(JNIEnv* env,
@@ -179,6 +192,10 @@ static void SetSemanticsEnabled(JNIEnv* env,
   return PLATFORM_VIEW->SetSemanticsEnabled(enabled);
 }
 
+static jboolean GetIsSoftwareRendering(JNIEnv* env, jobject jcaller) {
+  return blink::Settings::Get().enable_software_rendering;
+}
+
 static void InvokePlatformMessageResponseCallback(JNIEnv* env,
                                                   jobject jcaller,
                                                   jlong platform_view,
@@ -193,8 +210,8 @@ static void InvokePlatformMessageEmptyResponseCallback(JNIEnv* env,
                                                        jobject jcaller,
                                                        jlong platform_view,
                                                        jint responseId) {
-  return PLATFORM_VIEW->InvokePlatformMessageEmptyResponseCallback(
-      env, responseId);
+  return PLATFORM_VIEW->InvokePlatformMessageEmptyResponseCallback(env,
+                                                                   responseId);
 }
 
 bool PlatformViewAndroid::Register(JNIEnv* env) {
@@ -242,7 +259,8 @@ bool PlatformViewAndroid::Register(JNIEnv* env) {
       },
       {
           .name = "nativeRunBundleAndSnapshot",
-          .signature = "(JLjava/lang/String;Ljava/lang/String;)V",
+          .signature =
+              "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
           .fnPtr = reinterpret_cast<void*>(&shell::RunBundleAndSnapshot),
       },
       {
@@ -269,7 +287,8 @@ bool PlatformViewAndroid::Register(JNIEnv* env) {
       {
           .name = "nativeDispatchEmptyPlatformMessage",
           .signature = "(JLjava/lang/String;I)V",
-          .fnPtr = reinterpret_cast<void*>(&shell::DispatchEmptyPlatformMessage),
+          .fnPtr =
+              reinterpret_cast<void*>(&shell::DispatchEmptyPlatformMessage),
       },
       {
           .name = "nativeDispatchPointerDataPacket",
@@ -297,6 +316,11 @@ bool PlatformViewAndroid::Register(JNIEnv* env) {
           .signature = "(JI)V",
           .fnPtr = reinterpret_cast<void*>(
               &shell::InvokePlatformMessageEmptyResponseCallback),
+      },
+      {
+          .name = "nativeGetIsSoftwareRenderingEnabled",
+          .signature = "()Z",
+          .fnPtr = reinterpret_cast<void*>(&shell::GetIsSoftwareRendering),
       },
   };
 
@@ -328,6 +352,12 @@ bool PlatformViewAndroid::Register(JNIEnv* env) {
     return false;
   }
 
+  g_on_first_frame_method =
+      env->GetMethodID(g_flutter_view_class->obj(), "onFirstFrame", "()V");
+
+  if (g_on_first_frame_method == nullptr) {
+    return false;
+  }
   return true;
 }
 

@@ -490,7 +490,7 @@ class Size extends OffsetBase {
 
   /// Linearly interpolate between two sizes
   ///
-  /// If either size is null, this function interpolates from [Offset.zero].
+  /// If either size is null, this function interpolates from [Size.zero].
   static Size lerp(Size a, Size b, double t) {
     if (a == null && b == null)
       return null;
@@ -653,6 +653,15 @@ class Rect {
     );
   }
 
+  /// Whether `other` has a nonzero area of overlap with this rectangle.
+  bool overlaps(Rect other) {
+    if (right <= other.left || other.right <= left)
+      return false;
+    if (bottom <= other.top || other.bottom <= top)
+      return false;
+    return true;
+  }
+
   /// The lesser of the magnitudes of the width and the height of this
   /// rectangle.
   double get shortestSide {
@@ -776,6 +785,58 @@ class Radius {
   ///
   /// You can use [Radius.zero] with [RRect] to have right-angle corners.
   static const Radius zero = const Radius.circular(0.0);
+
+  /// Unary negation operator.
+  ///
+  /// Returns a Radius with the distances negated.
+  ///
+  /// Radiuses with negative values aren't geometrically meaningful, but could
+  /// occur as part of expressions. For example, negating a radius of one pixel
+  /// and then adding the result to another radius is equivalent to subtracting
+  /// a radius of one pixel from the other.
+  Radius operator -() => new Radius.elliptical(-x, -y);
+
+  /// Binary subtraction operator.
+  ///
+  /// Returns a radius whose [x] value is the left-hand-side operand's [x]
+  /// minus the right-hand-side operand's [x] and whose [y] value is the
+  /// left-hand-side operand's [y] minus the right-hand-side operand's [y].
+  Radius operator -(Radius other) => new Radius.elliptical(x - other.x, y - other.y);
+
+  /// Binary addition operator.
+  ///
+  /// Returns a radius whose [x] value is the sum of the [x] values of the
+  /// two operands, and whose [y] value is the sum of the [y] values of the
+  /// two operands.
+  Radius operator +(Radius other) => new Radius.elliptical(x + other.x, y + other.y);
+
+  /// Multiplication operator.
+  ///
+  /// Returns a radius whose coordinates are the coordinates of the
+  /// left-hand-side operand (a radius) multiplied by the scalar
+  /// right-hand-side operand (a double).
+  Radius operator *(double operand) => new Radius.elliptical(x * operand, y * operand);
+
+  /// Division operator.
+  ///
+  /// Returns a radius whose coordinates are the coordinates of the
+  /// left-hand-side operand (a radius) divided by the scalar right-hand-side
+  /// operand (a double).
+  Radius operator /(double operand) => new Radius.elliptical(x / operand, y / operand);
+
+  /// Integer (truncating) division operator.
+  ///
+  /// Returns a radius whose coordinates are the coordinates of the
+  /// left-hand-side operand (a radius) divided by the scalar right-hand-side
+  /// operand (a double), rounded towards zero.
+  Radius operator ~/(double operand) => new Radius.elliptical((x ~/ operand).toDouble(), (y ~/ operand).toDouble());
+
+  /// Modulo (remainder) operator.
+  ///
+  /// Returns a radius whose coordinates are the remainder of dividing the
+  /// coordinates of the left-hand-side operand (a radius) by the scalar
+  /// right-hand-side operand (a double).
+  Radius operator %(double operand) => new Radius.elliptical(x % operand, y % operand);
 
   /// Linearly interpolate between two radii.
   ///
@@ -1149,6 +1210,18 @@ class RRect {
   /// Negative areas are considered empty.
   bool get isEmpty => left >= right || top >= bottom;
 
+  /// Whether all coordinates of this rounded rectangle are finite.
+  bool get isFinite => left.isFinite && top.isFinite && right.isFinite && bottom.isFinite;
+
+  /// Whether this rounded rectangle is a simple rectangle with zero
+  /// corner radii.
+  bool get isRect {
+    return (tlRadiusX == 0.0 || tlRadiusY == 0.0) &&
+           (trRadiusX == 0.0 || trRadiusY == 0.0) &&
+           (blRadiusX == 0.0 || blRadiusY == 0.0) &&
+           (brRadiusX == 0.0 || brRadiusY == 0.0);
+  }
+
   /// Whether this rounded rectangle has a side with no straight section.
   bool get isStadium {
     return (
@@ -1342,11 +1415,24 @@ class RRect {
 
   @override
   String toString() {
-    return 'RRect.fromLTRBAndCorners(${left.toStringAsFixed(1)}, '
-           '${top.toStringAsFixed(1)}, ${right.toStringAsFixed(1)}, '
-           '${bottom.toStringAsFixed(1)}, '
-           'topLeft: $tlRadius, topRight: $trRadius, '
-           'bottomRight: $brRadius, bottomLeft: $blRadius)';
+    final String rect = '${left.toStringAsFixed(1)}, '
+                        '${top.toStringAsFixed(1)}, '
+                        '${right.toStringAsFixed(1)}, '
+                        '${bottom.toStringAsFixed(1)}';
+    if (tlRadius == trRadius &&
+        trRadius == brRadius &&
+        brRadius == blRadius) {
+      if (tlRadius.x == tlRadius.y)
+        return 'RRect.fromLTRBR($rect, ${tlRadius.x.toStringAsFixed(1)})';
+      return 'RRect.fromLTRBXY($rect, ${tlRadius.x.toStringAsFixed(1)}, ${tlRadius.y.toStringAsFixed(1)})';
+    }
+    return 'RRect.fromLTRBAndCorners('
+             '$rect, '
+             'topLeft: $tlRadius, '
+             'topRight: $trRadius, '
+             'bottomRight: $brRadius, '
+             'bottomLeft: $blRadius'
+           ')';
   }
 }
 
